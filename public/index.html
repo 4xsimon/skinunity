@@ -183,7 +183,8 @@
                     fetchMarketData();
                 }
             } else {
-                location.reload();
+                document.getElementById('login-section').classList.remove('hidden');
+                document.getElementById('dashboard-section').classList.add('hidden');
             }
         });
 
