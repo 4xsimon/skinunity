@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkinUnity | CS2 Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(21, 25, 33, 0.8); backdrop-filter: blur(10px); }
+        .progress-transition { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="bg-[#0b0e14] text-gray-100 min-h-screen">
+
+    <nav class="border-b border-gray-800 p-4 sticky top-0 z-50 glass">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <i data-lucide="trending-up" class="w-5 h-5 text-white"></i>
+                </div>
+                <h1 class="text-xl font-bold tracking-tight">SKIN<span class="text-blue-500">UNITY</span></h1>
+            </div>
+            <div id="user-badge" class="hidden flex items-center gap-4">
+                <span id="display-email" class="text-sm text-gray-400"></span>
+                <button onclick="logout()" class="text-xs bg-red-500/10 text-red-500 px-3 py-1 rounded-md hover:bg-red-500/20 transition">Wyloguj</button>
+            </div>
+        </div>
+    </nav>
+
+    <section id="login-section" class="max-w-md mx-auto mt-20 p-8 glass rounded-3xl border border-gray-800 shadow-2xl">
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold">Witaj z powrotem</h2>
+            <p class="text-gray-500 mt-2">Podaj dane, aby śledzić ekwipunek</p>
+        </div>
+        <div class="space-y-4">
+            <div>
+                <label class="text-xs font-semibold text-gray-400 uppercase ml-1">Email</label>
+                <input type="email" id="user-email" class="w-full p-4 mt-1 bg-[#0b0e14] border border-gray-800 rounded-xl outline-none focus:border-blue-500 transition text-sm">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-gray-400 uppercase ml-1">Hasło</label>
+                <input type="password" id="user-pass" class="w-full p-4 mt-1 bg-[#0b0e14] border border-gray-800 rounded-xl outline-none focus:border-blue-500 transition text-sm">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-gray-400 uppercase ml-1">Steam Trade URL</label>
+                <input type="text" id="user-tradeurl" placeholder="https://steamcommunity.com/tradeoffer/new/..." class="w-full p-4 mt-1 bg-[#0b0e14] border border-gray-800 rounded-xl outline-none focus:border-blue-500 transition text-sm">
+            </div>
+            <button onclick="handleAuth()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all active:scale-95">
+                Zaloguj / Rejestruj
+            </button>
+        </div>
+    </section>
+
+    <section id="dashboard-section" class="hidden max-w-7xl mx-auto p-6 space-y-8 animate-in fade-in duration-700">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass p-6 rounded-2xl border border-gray-800 text-center">
+                <p class="text-gray-500 text-sm">Twój SteamID64</p>
+                <p id="display-steamid" class="text-xl font-mono font-bold text-blue-400 mt-1">---</p>
+            </div>
+            <div class="glass p-6 rounded-2xl border border-gray-800 text-center">
+                <p class="text-gray-500 text-sm">Status Rynku</p>
+                <p class="text-xl font-bold text-green-400 mt-1">LIVE</p>
+            </div>
+            <div class="glass p-6 rounded-2xl border border-gray-800 text-center">
+                <p class="text-gray-500 text-sm">Aktualizacja</p>
+                <p class="text-xl font-bold text-yellow-500 mt-1 uppercase">Co 10 Min</p>
+            </div>
+        </div>
+
+        <!-- PASEK PROGRESU -->
+        <div id="progress-container" class="hidden glass p-4 rounded-2xl border border-blue-500/30">
+            <div class="flex justify-between mb-2">
+                <span id="progress-text" class="text-xs text-blue-400 font-mono italic">Inicjalizacja...</span>
+                <span id="progress-percent" class="text-xs font-bold text-white">0%</span>
+            </div>
+            <div class="w-full bg-gray-900 rounded-full h-2 overflow-hidden">
+                <div id="progress-bar" class="bg-blue-600 h-full progress-transition" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="glass rounded-3xl border border-gray-800 overflow-hidden shadow-xl">
+            <div class="p-6 border-b border-gray-800 flex justify-between items-center">
+                <h3 class="text-lg font-bold">Case Tracker <span class="text-xs text-blue-500 ml-2">LIVE</span></h3>
+                <button onclick="fetchMarketData()" class="p-2 hover:bg-gray-800 rounded-full transition">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 text-blue-400"></i>
+                </button>
+            </div>
+            <table class="w-full text-left">
+                <thead class="bg-[#1c222d] text-gray-500 text-xs uppercase">
+                    <tr>
+                        <th class="p-5">Przedmiot</th>
+                        <th class="p-5">Cena</th>
+                        <th class="p-5">Średnia 7d</th>
+                        <th class="p-5 text-center">Rekomendacja</th>
+                    </tr>
+                </thead>
+                <tbody id="case-table-body" class="divide-y divide-gray-800"></tbody>
+            </table>
+        </div>
+
+        <div class="space-y-4">
+            <div class="flex justify-between items-end">
+                <div>
+                    <h3 class="text-2xl font-bold">Twój Ekwipunek</h3>
+                    <p class="text-gray-500 text-sm">Wartość szacowana: <span id="total-value" class="text-green-400 font-bold">$0.00</span></p>
+                </div>
+                <button id="refresh-inv-btn" onclick="loadUserInventory()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition">
+                    Pobierz Ekwipunek
+                </button>
+            </div>
+            <div id="inventory-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <p class="text-gray-600 col-span-full py-10 text-center font-mono uppercase tracking-widest">Brak danych</p>
+            </div>
+        </div>
+    </section>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDuWTDorxKeRTjlCr9HxWicuZ1X27sZdPw",
+            authDomain: "skinunity-cs2.firebaseapp.com",
+            projectId: "skinunity-cs2",
+            storageBucket: "skinunity-cs2.firebasestorage.app",
+            messagingSenderId: "633957519046",
+            appId: "1:633957519046:web:c5326b75d6398bb9e011c7"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const socket = io();
+
+        let mySocketId;
+        socket.on('connect', () => mySocketId = socket.id);
+
+        socket.on('progress', (data) => {
+            const container = document.getElementById('progress-container');
+            const bar = document.getElementById('progress-bar');
+            const txt = document.getElementById('progress-text');
+            const pct = document.getElementById('progress-percent');
+
+            container.classList.remove('hidden');
+            const percent = Math.round((data.current / data.total) * 100);
+            bar.style.width = percent + '%';
+            pct.innerText = percent + '%';
+            txt.innerText = `Pobieranie ceny: ${data.itemName}...`;
+        });
+
+        window.handleAuth = async () => {
+            const email = document.getElementById('user-email').value;
+            const pass = document.getElementById('user-pass').value;
+            const tradeUrl = document.getElementById('user-tradeurl').value;
+            const match = tradeUrl.match(/partner=(\d+)/);
+            const steamId = match ? (BigInt(match[1]) + BigInt("76561197960265728")).toString() : null;
+
+            if (!steamId) return alert("Błędny Trade URL!");
+            try {
+                let userCred;
+                try { userCred = await signInWithEmailAndPassword(auth, email, pass); }
+                catch { userCred = await createUserWithEmailAndPassword(auth, email, pass); }
+                await setDoc(doc(db, "users", userCred.user.uid), { email, tradeUrl, steamId });
+            } catch (e) { alert(e.message); }
+        };
+
+        window.logout = () => signOut(auth);
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('dashboard-section').classList.remove('hidden');
+                document.getElementById('user-badge').classList.remove('hidden');
+                document.getElementById('display-email').innerText = user.email;
+                const snap = await getDoc(doc(db, "users", user.uid));
+                if (snap.exists()) {
+                    document.getElementById('display-steamid').innerText = snap.data().steamId;
+                    fetchMarketData();
+                }
+            } else {
+                location.reload();
+            }
+        });
+
+        async function fetchMarketData() {
+            const res = await fetch('/api/cases');
+            const data = await res.json();
+            document.getElementById('case-table-body').innerHTML = data.map(c => `
+                <tr class="hover:bg-gray-800/40 transition">
+                    <td class="p-5 font-semibold">${c.name}</td>
+                    <td class="p-5 text-blue-400 font-mono">$${c.price.toFixed(2)}</td>
+                    <td class="p-5 text-gray-500 font-mono">$${c.avg7d}</td>
+                    <td class="p-5 text-center">
+                        <span class="px-3 py-1 rounded-full text-[10px] font-bold ${c.recommendation === 'BUY' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}">
+                            ${c.recommendation}
+                        </span>
+                    </td>
+                </tr>`).join('');
+            lucide.createIcons();
+        }
+
+        async function loadUserInventory() {
+            const steamId = document.getElementById('display-steamid').innerText;
+            const btn = document.getElementById('refresh-inv-btn');
+            btn.disabled = true;
+            btn.innerText = "Skanowanie...";
+
+            try {
+                const res = await fetch(`/api/inventory/${steamId}?socketId=${mySocketId}`);
+                const data = await res.json();
+                
+                document.getElementById('progress-container').classList.add('hidden');
+                document.getElementById('total-value').innerText = `$${data.totalValue}`;
+                document.getElementById('inventory-grid').innerHTML = data.items.map(item => `
+                    <div class="glass p-3 rounded-xl border border-gray-800 relative group overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-0.5" style="background-color: #${item.color}"></div>
+                        <img src="${item.image}" class="w-full h-24 object-contain mb-2 group-hover:scale-110 transition duration-500">
+                        <p class="text-[9px] text-gray-500 truncate uppercase mb-1">${item.type}</p>
+                        <p class="text-xs font-bold truncate" style="color: #${item.color}">${item.name}</p>
+                        <p class="text-sm font-mono text-green-400 font-bold mt-2">$${item.price.toFixed(2)}</p>
+                    </div>`).join('');
+            } catch (e) { alert("Błąd!"); }
+            btn.disabled = false;
+            btn.innerText = "Pobierz Ekwipunek";
+        }
+
+        window.loadUserInventory = loadUserInventory;
+        window.fetchMarketData = fetchMarketData;
+        lucide.createIcons();
+    </script>
+</body>
+</html>
