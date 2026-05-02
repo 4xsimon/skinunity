@@ -135,7 +135,9 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const socket = io();
+        const socket = io({
+            transports: ['websocket'] 
+        });
 
         let mySocketId;
         socket.on('connect', () => mySocketId = socket.id);

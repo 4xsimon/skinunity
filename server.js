@@ -9,7 +9,9 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
-
+server.listen(PORT, () => {
+    console.log(`Serwer działa na porcie ${PORT}`);
+});
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
